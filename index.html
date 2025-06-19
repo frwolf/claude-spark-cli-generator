@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARC Command Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SPARC Automated Development System - Command Generator</h1>
+            <p>Configure your SPARC development workflow and generate the command in real-time</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Configuration Panel -->
+            <div class="config-panel">
+                <h2>Configuration</h2>
+                
+                <!-- Basic Settings -->
+                <div class="config-section">
+                    <h3>Basic Settings</h3>
+                    <div class="form-group">
+                        <label for="project-name">Project Name:</label>
+                        <input type="text" id="project-name" value="sparc-project" placeholder="Enter project name">
+                    </div>
+                    <div class="form-group">
+                        <label for="readme-path">README Path:</label>
+                        <input type="text" id="readme-path" value="README.md" placeholder="Path to requirements file">
+                    </div>
+                </div>
+
+                <!-- Development Options -->
+                <div class="config-section">
+                    <h3>Development Options</h3>
+                    <div class="form-group">
+                        <label for="development-mode">Development Mode:</label>
+                        <select id="development-mode">
+                            <option value="full">Full (Complete full-stack development)</option>
+                            <option value="backend-only">Backend Only (Backend services and APIs only)</option>
+                            <option value="frontend-only">Frontend Only (Frontend application only)</option>
+                            <option value="api-only">API Only (REST/GraphQL API development only)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="skip-tests"> Skip Tests (not recommended)
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="coverage-target">Test Coverage Target (%):</label>
+                        <input type="range" id="coverage-target" min="0" max="100" value="100">
+                        <span id="coverage-value">100%</span>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="parallel-execution" checked> Enable Parallel Execution
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Research Options -->
+                <div class="config-section">
+                    <h3>Research Options</h3>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="skip-research"> Skip Research Phase
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="research-depth">Research Depth:</label>
+                        <select id="research-depth">
+                            <option value="basic">Basic (Quick domain overview)</option>
+                            <option value="standard" selected>Standard (Comprehensive analysis)</option>
+                            <option value="comprehensive">Comprehensive (Extensive with academic papers)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Commit Options -->
+                <div class="config-section">
+                    <h3>Commit Options</h3>
+                    <div class="form-group">
+                        <label for="commit-frequency">Commit Frequency:</label>
+                        <select id="commit-frequency">
+                            <option value="phase" selected>Phase (After each SPARC phase)</option>
+                            <option value="feature">Feature (After each feature)</option>
+                            <option value="manual">Manual (No automatic commits)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Output Options -->
+                <div class="config-section">
+                    <h3>Output Options</h3>
+                    <div class="form-group">
+                        <label for="output-format">Output Format:</label>
+                        <select id="output-format">
+                            <option value="text" selected>Text</option>
+                            <option value="json">JSON</option>
+                            <option value="markdown">Markdown</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="verbose"> Verbose Output
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="dry-run"> Dry Run (Show what would be done)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Command Generation -->
+                <div class="config-section">
+                    <h3>Generated Command</h3>
+                    <div class="command-container">
+                        <pre id="generated-command"></pre>
+                        <button id="copy-command" class="btn btn-primary">Copy Command</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompt Preview Panel -->
+            <div class="prompt-panel">
+                <div class="prompt-header">
+                    <h2>Generated SPARC Prompt</h2>
+                    <div class="prompt-controls">
+                        <button id="expand-all" class="btn btn-secondary">Expand All</button>
+                        <button id="collapse-all" class="btn btn-secondary">Collapse All</button>
+                        <button id="copy-prompt" class="btn btn-primary">Copy Prompt</button>
+                    </div>
+                </div>
+                
+                <div class="prompt-content" id="prompt-content">
+                    <!-- Generated prompt will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
