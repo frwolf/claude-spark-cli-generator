@@ -40,21 +40,21 @@ OPTIONS:
     -v, --verbose              Enable verbose output
     -d, --dry-run              Show what would be done without executing
     -c, --config FILE          MCP configuration file (default: mcp.json)
-    
+
     # Research Options
     --skip-research            Skip the web research phase
     --research-depth LEVEL     Research depth: basic, standard, comprehensive (default: standard)
-    
+
     # Development Options
     --mode MODE                Development mode: full, backend-only, frontend-only, api-only (default: full)
     --skip-tests               Skip test development (not recommended)
     --coverage TARGET          Test coverage target percentage (default: 100)
     --no-parallel              Disable parallel execution
-    
+
     # Commit Options
     --commit-freq FREQ         Commit frequency: phase, feature, manual (default: phase)
     --no-commits               Disable automatic commits
-    
+
     # Output Options
     --output FORMAT            Output format: text, json, markdown (default: text)
     --quiet                    Suppress non-essential output
@@ -62,13 +62,13 @@ OPTIONS:
 EXAMPLES:
     # Basic usage
     ./claude-sparc.sh my-app docs/requirements.md
-    
+
     # Backend API development with verbose output
     ./claude-sparc.sh --mode api-only --verbose user-service api-spec.md
-    
+
     # Quick prototype without research
     ./claude-sparc.sh --skip-research --coverage 80 prototype-app readme.md
-    
+
     # Dry run to see what would be executed
     ./claude-sparc.sh --dry-run --verbose my-project requirements.md
 
@@ -180,20 +180,20 @@ validate_config() {
         echo "Warning: MCP config file not found: $MCP_CONFIG" >&2
         echo "Using default MCP configuration" >&2
     fi
-    
+
     # Check if README exists, try to find alternatives if default doesn't exist
     if [[ ! -f "$README_PATH" ]]; then
         # Try common README file variations
         local readme_alternatives=("README.md" "readme.md" "Readme.md" "README.txt" "readme.txt")
         local found_readme=""
-        
+
         for alt in "${readme_alternatives[@]}"; do
             if [[ -f "$alt" ]]; then
                 found_readme="$alt"
                 break
             fi
         done
-        
+
         if [[ -n "$found_readme" ]]; then
             echo "README file '$README_PATH' not found, using '$found_readme' instead" >&2
             README_PATH="$found_readme"
@@ -203,25 +203,25 @@ validate_config() {
             exit 1
         fi
     fi
-    
+
     # Validate development mode
     case $DEVELOPMENT_MODE in
         full|backend-only|frontend-only|api-only) ;;
         *) echo "Error: Invalid development mode: $DEVELOPMENT_MODE" >&2; exit 1 ;;
     esac
-    
+
     # Validate commit frequency
     case $COMMIT_FREQUENCY in
         phase|feature|manual) ;;
         *) echo "Error: Invalid commit frequency: $COMMIT_FREQUENCY" >&2; exit 1 ;;
     esac
-    
+
     # Validate output format
     case $OUTPUT_FORMAT in
         text|json|markdown) ;;
         *) echo "Error: Invalid output format: $OUTPUT_FORMAT" >&2; exit 1 ;;
     esac
-    
+
     # Validate coverage target
     if [[ ! "$TEST_COVERAGE_TARGET" =~ ^[0-9]+$ ]] || [[ "$TEST_COVERAGE_TARGET" -lt 0 ]] || [[ "$TEST_COVERAGE_TARGET" -gt 100 ]]; then
         echo "Error: Invalid coverage target: $TEST_COVERAGE_TARGET (must be 0-100)" >&2
@@ -255,15 +255,15 @@ EOF
 # Build allowed tools based on configuration
 build_allowed_tools() {
     local tools="View,Edit,Replace,GlobTool,GrepTool,LS,Bash"
-    
+
     if [[ "$SKIP_RESEARCH" != true ]]; then
         tools="$tools,WebFetchTool"
     fi
-    
+
     if [[ "$PARALLEL_EXECUTION" == true ]]; then
         tools="$tools,BatchTool,dispatch_agent"
     fi
-    
+
     echo "$tools"
 }
 
@@ -279,11 +279,11 @@ build_claude_flags() {
     if [[ "$VERBOSE" == true ]]; then
         flags="$flags --verbose"
     fi
-    
+
     if [[ "$OUTPUT_FORMAT" != "text" ]]; then
         flags="$flags --output-format $OUTPUT_FORMAT"
     fi
-    
+
     echo "$flags"
 }
 
@@ -322,50 +322,113 @@ execute_sparc_development() {
     local allowed_tools=$(build_allowed_tools)
     local claude_flags=$(build_claude_flags)
 
-claude "
+    # Build the prompt dynamically
+    local prompt="
 # SPARC Automated Development System
-# Project: ${PROJECT_NAME}
-# Initial Research Document: ${README_PATH}
-# Configuration: Mode=${DEVELOPMENT_MODE}, Coverage=${TEST_COVERAGE_TARGET}%, Parallel=${PARALLEL_EXECUTION}
 
-$(if [[ "$SKIP_RESEARCH" != true ]]; then cat << 'RESEARCH_BLOCK'
+**Project**: ${PROJECT_NAME}
+**Initial Research Document**: ${README_PATH}
+Configuration: Mode=${DEVELOPMENT_MODE}, Coverage=${TEST_COVERAGE_TARGET}%, Parallel=${PARALLEL_EXECUTION}
+"
+
+    # Add research phase if not skipped
+    if [[ "$SKIP_RESEARCH" != true ]]; then
+        local execution_type="Sequential execution"
+        if [[ "$PARALLEL_EXECUTION" == true ]]; then
+            execution_type="BatchTool execution"
+        fi
+
+        prompt+="
 ## PHASE 0: COMPREHENSIVE RESEARCH & DISCOVERY
+
 ### Research Depth: ${RESEARCH_DEPTH:-standard}
-### Parallel Web Research Phase ($(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "BatchTool execution"; else echo "Sequential execution"; fi)):
+
+### Parallel Web Research Phase (${execution_type})
 
 1. **Domain Research**:
    - WebFetchTool: Extract key concepts from ${README_PATH}
    - WebFetchTool: Search for latest industry trends and technologies
-   - WebFetchTool: Research competitive landscape and existing solutions
-   $(if [[ "${RESEARCH_DEPTH:-standard}" == "comprehensive" ]]; then echo "   - WebFetchTool: Gather academic papers and technical documentation"; fi)
+   - WebFetchTool: Research competitive landscape and existing solutions"
+
+        if [[ "${RESEARCH_DEPTH:-standard}" == "comprehensive" ]]; then
+            prompt+="
+   - WebFetchTool: Gather academic papers and technical documentation"
+        fi
+
+        prompt+="
 
 2. **Technology Stack Research**:
    - WebFetchTool: Research best practices for identified technology domains
    - WebFetchTool: Search for framework comparisons and recommendations
-   - WebFetchTool: Investigate security considerations and compliance requirements
-   $(if [[ "${RESEARCH_DEPTH:-standard}" != "basic" ]]; then echo "   - WebFetchTool: Research scalability patterns and architecture approaches"; fi)
+   - WebFetchTool: Investigate security considerations and compliance requirements"
+
+        if [[ "${RESEARCH_DEPTH:-standard}" != "basic" ]]; then
+            prompt+="
+   - WebFetchTool: Research scalability patterns and architecture approaches"
+        fi
+
+        prompt+="
 
 3. **Implementation Research**:
-   - WebFetchTool: Search for code examples and implementation patterns
-   $(if [[ "$SKIP_TESTS" != true ]]; then echo "   - WebFetchTool: Research testing frameworks and methodologies"; fi)
-   - WebFetchTool: Investigate deployment and DevOps best practices
-   $(if [[ "${RESEARCH_DEPTH:-standard}" == "comprehensive" ]]; then echo "   - WebFetchTool: Research monitoring and observability solutions"; fi)
+   - WebFetchTool: Search for code examples and implementation patterns"
 
-### Research Processing:
-$(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "Use BatchTool to execute all research queries in parallel for maximum efficiency."; else echo "Execute research queries sequentially for thorough analysis."; fi)
+        if [[ "$SKIP_TESTS" != true ]]; then
+            prompt+="
+   - WebFetchTool: Research testing frameworks and methodologies"
+        fi
 
-$(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "**Commit**: 'feat: complete comprehensive research phase - gathered domain knowledge, technology insights, and implementation patterns'"; fi)
-RESEARCH_BLOCK
-fi)
+        prompt+="
+   - WebFetchTool: Investigate deployment and DevOps best practices"
 
+        if [[ "${RESEARCH_DEPTH:-standard}" == "comprehensive" ]]; then
+            prompt+="
+   - WebFetchTool: Research monitoring and observability solutions"
+        fi
+
+        prompt+="
+
+### Research Processing
+"
+        if [[ "$PARALLEL_EXECUTION" == true ]]; then
+            prompt+="
+Use BatchTool to execute all research queries in parallel for maximum efficiency."
+        else
+            prompt+="
+Execute research queries sequentially for thorough analysis."
+        fi
+
+        if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+            prompt+="
+
+**Commit**: 'feat: complete comprehensive research phase - gathered domain knowledge, technology insights, and implementation patterns'"
+        fi
+
+        prompt+="
+"
+    fi
+
+    # Add specification phase
+    prompt+="
 ## SPECIFICATION PHASE
-### Requirements Analysis for ${DEVELOPMENT_MODE} development:
+
+### Requirements Analysis for '${DEVELOPMENT_MODE}' development
+
 1. **Functional Requirements**:
    - Analyze ${README_PATH} to extract core functionality
    - Define user stories and acceptance criteria
-   - Identify system boundaries and interfaces
-   $(if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "api-only" ]]; then echo "   - Specify API endpoints and data models"; fi)
-   $(if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "frontend-only" ]]; then echo "   - Define user interface requirements and user experience flows"; fi)
+   - Identify system boundaries and interfaces"
+
+    if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "api-only" ]]; then
+        prompt+="
+   - Specify API endpoints and data models"
+    fi
+
+    if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "frontend-only" ]]; then
+        prompt+="
+   - Define user interface requirements and user experience flows"
+    fi
+
+    prompt+="
 
 2. **Non-Functional Requirements**:
    - Security and compliance requirements
@@ -377,16 +440,39 @@ fi)
    - Technology stack decisions based on research
    - Integration requirements and dependencies
    - Deployment and infrastructure constraints
-   - Budget and timeline considerations
+   - Budget and timeline considerations"
 
-$(if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then echo "**Commit**: 'docs: complete specification phase - defined functional/non-functional requirements and technical constraints for ${DEVELOPMENT_MODE} development'"; fi)
+    if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then
+        prompt+="
+
+**Commit**: 'docs: complete specification phase - defined functional/non-functional requirements and technical constraints for ${DEVELOPMENT_MODE} development'"
+    fi
+
+    # Add pseudocode phase
+    prompt+="
 
 ## PSEUDOCODE PHASE
-### High-Level Architecture Design for ${DEVELOPMENT_MODE}:
-1. **System Architecture**:
-   $(if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" ]]; then echo "   - Define backend components and their responsibilities"; fi)
-   $(if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "frontend-only" ]]; then echo "   - Design frontend architecture and component hierarchy"; fi)
-   $(if [[ "$DEVELOPMENT_MODE" == "api-only" ]]; then echo "   - Define API architecture and endpoint structure"; fi)
+
+### High-Level Architecture Design for '${DEVELOPMENT_MODE}'
+
+1. **System Architecture**:"
+
+    if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" ]]; then
+        prompt+="
+   - Define backend components and their responsibilities"
+    fi
+
+    if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "frontend-only" ]]; then
+        prompt+="
+   - Design frontend architecture and component hierarchy"
+    fi
+
+    if [[ "$DEVELOPMENT_MODE" == "api-only" ]]; then
+        prompt+="
+   - Define API architecture and endpoint structure"
+    fi
+
+    prompt+="
    - Design data flow and communication patterns
    - Specify APIs and integration points
    - Plan error handling and recovery strategies
@@ -395,183 +481,433 @@ $(if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then echo "**Commit**: 'docs: complet
    - Core business logic algorithms
    - Data processing and transformation logic
    - Optimization strategies and performance considerations
-   - Security and validation algorithms
+   - Security and validation algorithms"
 
-$(if [[ "$SKIP_TESTS" != true ]]; then cat << 'TEST_BLOCK'
+    if [[ "$SKIP_TESTS" != true ]]; then
+        prompt+="
+
 3. **Test Strategy**:
    - Unit testing approach (TDD London School)
    - Integration testing strategy
    - End-to-end testing scenarios
-   - Target: ${TEST_COVERAGE_TARGET}% test coverage
-   $(if [[ "$DEVELOPMENT_MODE" == "full" ]]; then echo "   - Frontend and backend testing coordination"; fi)
-TEST_BLOCK
-fi)
+   - Target: ${TEST_COVERAGE_TARGET}% test coverage"
 
-$(if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then echo "**Commit**: 'design: complete pseudocode phase - defined system architecture, algorithms, and test strategy for ${DEVELOPMENT_MODE}'"; fi)
+        if [[ "$DEVELOPMENT_MODE" == "full" ]]; then
+            prompt+="
+   - Frontend and backend testing coordination"
+        fi
+    fi
+
+    if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then
+        prompt+="
+
+**Commit**: 'design: complete pseudocode phase - defined system architecture, algorithms, and test strategy for ${DEVELOPMENT_MODE}'"
+    fi
+
+    # Add architecture phase
+    prompt+="
 
 ## ARCHITECTURE PHASE
-### Detailed System Design for ${DEVELOPMENT_MODE}:
+
+### Detailed System Design for '${DEVELOPMENT_MODE}'
+
 1. **Component Architecture**:
    - Detailed component specifications
    - Interface definitions and contracts
    - Dependency injection and inversion of control
-   - Configuration management strategy
+   - Configuration management strategy"
 
-$(if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "api-only" ]]; then cat << 'DATA_BLOCK'
+    if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "api-only" ]]; then
+        prompt+="
+
 2. **Data Architecture**:
    - Database schema design
    - Data access patterns and repositories
    - Caching strategies and data flow
-   - Backup and recovery procedures
-DATA_BLOCK
-fi)
+   - Backup and recovery procedures"
+    fi
+
+    prompt+="
 
 3. **Infrastructure Architecture**:
    - Deployment architecture and environments
    - CI/CD pipeline design
    - Monitoring and logging architecture
-   - Security architecture and access controls
+   - Security architecture and access controls"
 
-$(if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then echo "**Commit**: 'arch: complete architecture phase - detailed component, data, and infrastructure design for ${DEVELOPMENT_MODE}'"; fi)
+    if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then
+        prompt+="
+
+**Commit**: 'arch: complete architecture phase - detailed component, data, and infrastructure design for ${DEVELOPMENT_MODE}'"
+    fi
+
+    # Add refinement phase
+    local execution_style="Sequential"
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        execution_style="Parallel"
+    fi
+
+    prompt+="
 
 ## REFINEMENT PHASE (TDD Implementation)
-### $(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "Parallel"; else echo "Sequential"; fi) Development Tracks for ${DEVELOPMENT_MODE}:
 
-$(if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "api-only" ]]; then cat << 'BACKEND_BLOCK'
+### ${execution_style} Development Tracks for '${DEVELOPMENT_MODE}'"
+
+    # Add backend development track if applicable
+    if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "api-only" ]]; then
+        prompt+="
+
 #### Track 1: Backend Development
+
 1. **Setup & Infrastructure**:
    - Bash: Initialize project structure
    - Bash: Setup development environment
-   - Bash: Configure CI/CD pipeline
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'feat: initialize backend infrastructure and development environment'"; fi)
+   - Bash: Configure CI/CD pipeline"
 
-$(if [[ "$SKIP_TESTS" != true ]]; then cat << 'BACKEND_TDD_BLOCK'
+        if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+            prompt+="
+   - **Commit**: 'feat: initialize backend infrastructure and development environment'"
+        fi
+
+        if [[ "$SKIP_TESTS" != true ]]; then
+            prompt+="
+
 2. **TDD Core Components** (London School):
    - Red: Write failing tests for core business logic
    - Green: Implement minimal code to pass tests
    - Refactor: Optimize while maintaining green tests
-   - Target: ${TEST_COVERAGE_TARGET}% coverage
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'feat: implement core business logic with TDD - ${TEST_COVERAGE_TARGET}% test coverage'"; fi)
-BACKEND_TDD_BLOCK
-fi)
+   - Target: ${TEST_COVERAGE_TARGET}% coverage"
 
-3. **API Layer Development**:
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Red: Write API contract tests"; else echo "Implement API endpoints"; fi)
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Green: Implement API endpoints"; else echo "Add input validation and error handling"; fi)
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Refactor: Optimize API performance"; else echo "Optimize API performance"; fi)
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'feat: complete API layer with $(if [[ "$SKIP_TESTS" != true ]]; then echo "comprehensive test coverage"; else echo "validation and error handling"; fi)'"; fi)
-BACKEND_BLOCK
-fi)
+            if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+                prompt+="
+   - **Commit**: 'feat: implement core business logic with TDD - ${TEST_COVERAGE_TARGET}% test coverage'"
+            fi
+        fi
 
-$(if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "frontend-only" ]]; then cat << 'FRONTEND_BLOCK'
+        prompt+="
+
+3. **API Layer Development**:"
+
+        if [[ "$SKIP_TESTS" != true ]]; then
+            prompt+="
+   - Red: Write API contract tests
+   - Green: Implement API endpoints
+   - Refactor: Optimize API performance"
+        else
+            prompt+="
+   - Implement API endpoints
+   - Add input validation and error handling
+   - Optimize API performance"
+        fi
+
+        if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+            local api_commit_msg="validation and error handling"
+            if [[ "$SKIP_TESTS" != true ]]; then
+                api_commit_msg="comprehensive test coverage"
+            fi
+            prompt+="
+   - **Commit**: 'feat: complete API layer with ${api_commit_msg}'"
+        fi
+    fi
+
+    # Add frontend development track if applicable
+    if [[ "$DEVELOPMENT_MODE" == "full" || "$DEVELOPMENT_MODE" == "frontend-only" ]]; then
+        prompt+="
+
 #### Track 2: Frontend Development
-1. **UI Component Library**:
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Red: Write component tests"; else echo "Implement UI components"; fi)
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Green: Implement UI components"; else echo "Add component styling and interactions"; fi)
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Refactor: Optimize for reusability"; else echo "Optimize for reusability and performance"; fi)
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'feat: complete UI component library with $(if [[ "$SKIP_TESTS" != true ]]; then echo "full test coverage"; else echo "optimized components"; fi)'"; fi)
 
-2. **Application Logic**:
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Red: Write application flow tests"; else echo "Implement user interactions"; fi)
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Green: Implement user interactions"; else echo "Add state management and routing"; fi)
-   - $(if [[ "$SKIP_TESTS" != true ]]; then echo "Refactor: Optimize user experience"; else echo "Optimize user experience and performance"; fi)
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'feat: complete frontend application logic with $(if [[ "$SKIP_TESTS" != true ]]; then echo "end-to-end tests"; else echo "optimized user experience"; fi)'"; fi)
-FRONTEND_BLOCK
-fi)
+1. **UI Component Library**:"
+
+        if [[ "$SKIP_TESTS" != true ]]; then
+            prompt+="
+   - Red: Write component tests
+   - Green: Implement UI components
+   - Refactor: Optimize for reusability"
+        else
+            prompt+="
+   - Implement UI components
+   - Add component styling and interactions
+   - Optimize for reusability and performance"
+        fi
+
+        if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+            local ui_commit_msg="optimized components"
+            if [[ "$SKIP_TESTS" != true ]]; then
+                ui_commit_msg="full test coverage"
+            fi
+            prompt+="
+   - **Commit**: 'feat: complete UI component library with ${ui_commit_msg}'"
+        fi
+
+        prompt+="
+
+2. **Application Logic**:"
+
+        if [[ "$SKIP_TESTS" != true ]]; then
+            prompt+="
+   - Red: Write application flow tests
+   - Green: Implement user interactions
+   - Refactor: Optimize user experience"
+        else
+            prompt+="
+   - Implement user interactions
+   - Add state management and routing
+   - Optimize user experience and performance"
+        fi
+
+        if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+            local app_commit_msg="optimized user experience"
+            if [[ "$SKIP_TESTS" != true ]]; then
+                app_commit_msg="end-to-end tests"
+            fi
+            prompt+="
+   - **Commit**: 'feat: complete frontend application logic with ${app_commit_msg}'"
+        fi
+    fi
+
+    # Add integration and quality assurance track
+    prompt+="
 
 #### Track 3: Integration & Quality Assurance
-1. **Integration Testing**:
-   $(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "   - BatchTool: Run parallel integration test suites"; else echo "   - Bash: Run integration test suites"; fi)
+
+1. **Integration Testing**:"
+
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        prompt+="
+   - BatchTool: Run parallel integration test suites"
+    else
+        prompt+="
+   - Bash: Run integration test suites"
+    fi
+
+    prompt+="
    - Bash: Execute performance benchmarks
-   - Bash: Run security scans and audits
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'test: complete integration testing with performance and security validation'"; fi)
+   - Bash: Run security scans and audits"
 
-2. **Quality Gates**:
-   $(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "   - BatchTool: Run parallel quality checks (linting, analysis, documentation)"; else echo "   - Bash: Run comprehensive linting and code quality analysis"; fi)
-   - Bash: Validate documentation completeness
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'quality: pass all quality gates - linting, analysis, and documentation'"; fi)
+    if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+        prompt+="
+   - **Commit**: 'test: complete integration testing with performance and security validation'"
+    fi
 
-### $(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "Parallel"; else echo "Sequential"; fi) Subtask Orchestration:
-$(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "Use BatchTool to execute independent development tracks in parallel where possible."; else echo "Execute development tracks sequentially for thorough validation."; fi)
+    prompt+="
+
+2. **Quality Gates**:"
+
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        prompt+="
+   - BatchTool: Run parallel quality checks (linting, analysis, documentation)"
+    else
+        prompt+="
+   - Bash: Run comprehensive linting and code quality analysis"
+    fi
+
+    prompt+="
+   - Bash: Validate documentation completeness"
+
+    if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+        prompt+="
+   - **Commit**: 'quality: pass all quality gates - linting, analysis, and documentation'"
+    fi
+
+    prompt+="
+
+### ${execution_style} Subtask Orchestration
+"
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        prompt+="
+Use BatchTool to execute independent development tracks in parallel where possible."
+    else
+        prompt+="
+Execute development tracks sequentially for thorough validation."
+    fi
+
+    # Add completion phase
+    prompt+="
 
 ## COMPLETION PHASE
-### Final Integration & Deployment for ${DEVELOPMENT_MODE}:
-1. **System Integration**:
-   - Integrate all development tracks
-   $(if [[ "$SKIP_TESTS" != true ]]; then echo "   - Run comprehensive end-to-end tests"; fi)
-   - Validate against original requirements
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'feat: complete system integration with full validation'"; fi)
 
-2. **Documentation & Deployment**:
-   $(if [[ "$DEVELOPMENT_MODE" == "api-only" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "full" ]]; then echo "   - Generate comprehensive API documentation"; fi)
+### Final Integration & Deployment for '${DEVELOPMENT_MODE}'
+
+1. **System Integration**:
+   - Integrate all development tracks"
+
+    if [[ "$SKIP_TESTS" != true ]]; then
+        prompt+="
+   - Run comprehensive end-to-end tests"
+    fi
+
+    prompt+="
+   - Validate against original requirements"
+
+    if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+        prompt+="
+   - **Commit**: 'feat: complete system integration with full validation'"
+    fi
+
+    prompt+="
+
+2. **Documentation & Deployment**:"
+
+    if [[ "$DEVELOPMENT_MODE" == "api-only" || "$DEVELOPMENT_MODE" == "backend-only" || "$DEVELOPMENT_MODE" == "full" ]]; then
+        prompt+="
+   - Generate comprehensive API documentation"
+    fi
+
+    prompt+="
    - Create deployment guides and runbooks
-   - Setup monitoring and alerting
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'docs: complete documentation and deployment preparation'"; fi)
+   - Setup monitoring and alerting"
+
+    if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+        prompt+="
+   - **Commit**: 'docs: complete documentation and deployment preparation'"
+    fi
+
+    prompt+="
 
 3. **Production Readiness**:
    - Execute production deployment checklist
    - Validate monitoring and observability
-   - Conduct final security review
-   $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "   - **Commit**: 'deploy: production-ready release with full monitoring and security validation'"; fi)
+   - Conduct final security review"
+
+    if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+        prompt+="
+   - **Commit**: 'deploy: production-ready release with full monitoring and security validation'"
+    fi
+
+    # Add SPARC methodology enforcement
+    prompt+="
 
 ## SPARC METHODOLOGY ENFORCEMENT
-### Quality Standards:
+
+### Quality Standards
+
 - **Modularity**: All files ≤ 500 lines, functions ≤ 50 lines
-- **Security**: No hardcoded secrets, comprehensive input validation
-$(if [[ "$SKIP_TESTS" != true ]]; then echo "- **Testing**: ${TEST_COVERAGE_TARGET}% test coverage with TDD London School approach"; fi)
+- **Security**: No hardcoded secrets, comprehensive input validation"
+
+    if [[ "$SKIP_TESTS" != true ]]; then
+        prompt+="
+- **Testing**: ${TEST_COVERAGE_TARGET}% test coverage with TDD London School approach"
+    fi
+
+    prompt+="
 - **Documentation**: Self-documenting code with strategic comments
 - **Performance**: Optimized critical paths with benchmarking
 
-### Tool Utilization Strategy:
-$(if [[ "$SKIP_RESEARCH" != true ]]; then echo "- **WebFetchTool**: Comprehensive research and documentation gathering"; fi)
-$(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "- **BatchTool**: Parallel research, testing, and quality checks"; fi)
+### Tool Utilization Strategy
+"
+    if [[ "$SKIP_RESEARCH" != true ]]; then
+        prompt+="
+- **WebFetchTool**: Comprehensive research and documentation gathering"
+    fi
+
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        prompt+="
+- **BatchTool**: Parallel research, testing, and quality checks"
+    fi
+
+    prompt+="
 - **Bash**: Git operations, CI/CD, testing, and deployment
 - **Edit/Replace**: Code implementation and refactoring
-- **GlobTool/GrepTool**: Code analysis and pattern detection
-$(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "- **dispatch_agent**: Complex subtask delegation"; fi)
+- **GlobTool/GrepTool**: Code analysis and pattern detection"
 
-### Commit Standards (Frequency: ${COMMIT_FREQUENCY}):
-- **feat**: New features and major functionality
-$(if [[ "$SKIP_TESTS" != true ]]; then echo "- **test**: Test implementation and coverage improvements"; fi)
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        prompt+="
+- **dispatch_agent**: Complex subtask delegation"
+    fi
+
+    prompt+="
+
+### Commit Standards (Frequency: ${COMMIT_FREQUENCY})
+
+- **feat**: New features and major functionality"
+
+    if [[ "$SKIP_TESTS" != true ]]; then
+        prompt+="
+- **test**: Test implementation and coverage improvements"
+    fi
+
+    prompt+="
 - **fix**: Bug fixes and issue resolution
 - **docs**: Documentation updates and improvements
 - **arch**: Architectural changes and design updates
 - **quality**: Code quality improvements and refactoring
 - **deploy**: Deployment and infrastructure changes
 
-### $(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "Parallel"; else echo "Sequential"; fi) Execution Strategy:
-$(if [[ "$PARALLEL_EXECUTION" == true ]]; then cat << 'PARALLEL_BLOCK'
+### ${execution_style} Execution Strategy
+"
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        prompt+="
 1. Use BatchTool for independent operations
 2. Leverage dispatch_agent for complex subtasks
 3. Implement concurrent development tracks
-4. Optimize for maximum development velocity
-PARALLEL_BLOCK
-else cat << 'SEQUENTIAL_BLOCK'
+4. Optimize for maximum development velocity"
+    else
+        prompt+="
 1. Execute operations sequentially for thorough validation
 2. Focus on quality over speed
 3. Ensure each step is fully validated before proceeding
-4. Maintain clear development progression
-SEQUENTIAL_BLOCK
-fi)
+4. Maintain clear development progression"
+    fi
 
-### Continuous Integration:
-$(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "- Commit after each $(if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then echo "major phase"; else echo "feature"; fi) completion"; fi)
-$(if [[ "$SKIP_TESTS" != true ]]; then echo "- Run automated tests on every commit"; fi)
+    # Add continuous integration and success criteria
+    prompt+="
+
+### Continuous Integration
+"
+
+    if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+        local commit_msg="feature"
+        if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then
+            commit_msg="major phase"
+        fi
+        prompt+="
+- Commit after each ${commit_msg} completion"
+    fi
+
+    if [[ "$SKIP_TESTS" != true ]]; then
+        prompt+="
+- Run automated tests on every commit"
+    fi
+
+    prompt+="
 - Validate quality gates continuously
 - Monitor performance and security metrics
 
-## SUCCESS CRITERIA:
-$(if [[ "$SKIP_TESTS" != true ]]; then echo "- ✅ ${TEST_COVERAGE_TARGET}% test coverage achieved"; fi)
+## SUCCESS CRITERIA
+"
+
+    if [[ "$SKIP_TESTS" != true ]]; then
+        prompt+="
+- ✅ ${TEST_COVERAGE_TARGET}% test coverage achieved"
+    fi
+
+    prompt+="
 - ✅ All quality gates passed
 - ✅ Production deployment successful
 - ✅ Comprehensive documentation complete
 - ✅ Security and performance validated
 - ✅ Monitoring and observability operational
 
-Continue development until all success criteria are met. $(if [[ "$PARALLEL_EXECUTION" == true ]]; then echo "Use parallel execution and subtask orchestration for maximum efficiency."; fi) $(if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then echo "Commit after each $(if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then echo "phase"; else echo "feature"; fi) with detailed messages."; fi) Display '<SPARC-COMPLETE>' when the entire development lifecycle is finished.
-" \
-  --allowedTools "$allowed_tools" \
-  $claude_flags
+Continue development until all success criteria are met."
+
+    if [[ "$PARALLEL_EXECUTION" == true ]]; then
+        prompt+=" Use parallel execution and subtask orchestration for maximum efficiency."
+    fi
+
+    if [[ "$COMMIT_FREQUENCY" != "manual" ]]; then
+        local commit_interval="feature"
+        if [[ "$COMMIT_FREQUENCY" == "phase" ]]; then
+            commit_interval="phase"
+        fi
+        prompt+=" Commit after each ${commit_interval} with detailed messages."
+    fi
+
+    prompt+=" Display '<SPARC-COMPLETE>' when the entire development lifecycle is finished."
+
+    # Execute the Claude command
+    echo "$prompt" \
+      --allowedTools "$allowed_tools" \
+      $claude_flags
 }
 
 # Execute main function with all arguments
