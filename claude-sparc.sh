@@ -905,7 +905,7 @@ Continue development until all success criteria are met."
     prompt+=" Display '<SPARC-COMPLETE>' when the entire development lifecycle is finished."
 
     # Execute the Claude command
-    echo "$prompt" \
+    claude "$prompt" \
       --allowedTools "$allowed_tools" \
       $claude_flags
 }
