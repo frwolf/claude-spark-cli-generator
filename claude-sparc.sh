@@ -902,7 +902,9 @@ Continue development until all success criteria are met."
         prompt+=" Commit after each ${commit_interval} with detailed messages."
     fi
 
-    prompt+=" Display '<SPARC-COMPLETE>' when the entire development lifecycle is finished."
+    prompt+=" Display 'SPARC-COMPLETE' when the entire development lifecycle is finished.
+
+    "
 
     # Execute the Claude command
     claude "$prompt" \
